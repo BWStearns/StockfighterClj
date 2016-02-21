@@ -1,36 +1,3 @@
-# sf_clojure
+# Stockfighter Clojure Edition
 
-FIXME: description
-
-## Installation
-
-Download from http://example.com/FIXME.
-
-## Usage
-
-FIXME: explanation
-
-    $ java -jar sf_clojure-0.1.0-standalone.jar [args]
-
-## Options
-
-FIXME: listing of options this app accepts.
-
-## Examples
-
-...
-
-### Bugs
-
-...
-
-### Any Other Sections
-### That You Think
-### Might be Useful
-
-## License
-
-Copyright © 2016 FIXME
-
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+Learning Clojure. It's my first Lisp so I'm sure it'll be cringeworthy for old clojure hands but it's pretty fun and I've been meaning to try [Stockfighter](https://starfighter.readme.io/v1.0/docs) for a while.
