@@ -1,4 +1,4 @@
-(ns sf-clojure.core
+(ns sf-clojure.sf_api_client
   (:gen-class))
 
 (require '[org.httpkit.client :as http])
@@ -6,6 +6,8 @@
 (require '[aleph.http :as ws-http])
 (require '[byte-streams :as bs])
 (require '[manifold.stream :as s])
+
+(require '[sf-clojure.secrets :as secrets])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -15,7 +17,7 @@
 ; Make these private definitions
 ;
 
-(def api-key "95e82656b3805a9f99802e0d287f32c112acad65")
+(def api-key secrets/api-key)
 (def base-url "https://api.stockfighter.io/ob/api")
 
 (def req-opts {
@@ -73,7 +75,7 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;; STAT ATOMS ;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;; ATOMIC STATS ;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn spread [stock-quote] (- 
