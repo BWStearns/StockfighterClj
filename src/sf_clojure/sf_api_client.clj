@@ -79,11 +79,22 @@
 
 (defn mk-ticker
 	[acct venue stock]
-	(ws-http/websocket-client (str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/tickertape/stocks/" stock)))
+	(ws-http/websocket-client 
+		(str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/tickertape/stocks/" stock)))
 
 (defn mk-ex-ticker
 	[acct venue]
-	(ws-http/websocket-client (str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/tickertape/")))
+	(ws-http/w
+
+(defn mk-ex-execution-ticker
+	[acct venue]
+	(ws-http/websocket-client 
+		(str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/")))
+
+(defn mk-execution-ticker
+	[acct venue stock]
+	(ws-http/websocket-client 
+		(str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/stocks/" stock)))
 
 (def record-to [record-atom]
 	; Switch to update instead of replace with last
@@ -101,8 +112,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn spread [stock-quote] (- 
-	(or (:ask stock-quote) (:bid stock-quote))
-	(or (:bid stock-quote) (:ask stock-quote))))
+	(or (get stock-quote "ask") (get stock-quote "bid"))
+	(or (get stock-quote "bid") (get stock-quote "ask"))))
 
 (defn average [lst] (/ (reduce + lst) (count lst)))
 
@@ -155,7 +166,7 @@
 			(let [
 				lq (json/read-str @last-quote)
 				]
-				
+
 						))))
 
 
