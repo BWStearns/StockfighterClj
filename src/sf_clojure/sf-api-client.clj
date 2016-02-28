@@ -14,9 +14,8 @@
 ;;;;;;; Static, GM, and Config Stuff ;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
-; Make these private definitions
+; Make these private definitions?
 ;
-; (require ['sf-clojure.sf-api-client :refer :all])
 
 (def api-key secrets/api-key)
 (def base-url "https://api.stockfighter.io/ob/api")
@@ -122,7 +121,6 @@
 	direction: Whether you want to 'buy' or 'sell'
 	orderType: ['limit'|'market'|'fill-or-kill'|'immediate-or-cancel']
 	"
-	; https://api.stockfighter.io/ob/api/venues/:venue/stocks/:stock/orders
 	@(http/post 
 		(str "https://api.stockfighter.io/ob/api/venues/" (get order "venue") "/stocks/" (get order "stock") "/orders")
 		(into req-opts {:body (json/write-str order)}))
@@ -131,7 +129,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; WEB SOCKETS ;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Probably going to need s/consume?
 
 (defn mk-ticker
 	[acct venue stock]
@@ -154,12 +151,6 @@
 
 (defn record-last-quote [ws]
 	(s/consume (fn [q] (reset! last-quote (json/read-str q))) @ws))
-
-; Lead for dealing with breaking pipes: s/closed? || s/on-closed
-; (def ws (mk-ex-ticker account venue))
-
-; (defn record-venue [record connection]
-; 	(future (s/consume (record-to record) @connection)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; ATOMIC STATS ;;;;;;;;;;;;;;;
@@ -189,9 +180,6 @@
 ;;;;;;;;;;;;;; COMPOSITES ;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(let [foo 3 bar 6 baz (fn [] (* bar 10)) a 5] (baz))
-
-
 (defn stupid-block-sell [acct venue stock qty]
 	"This method assumes your fellow market participants are criminally stupid."
 	(println "Starting up....")
@@ -211,13 +199,11 @@
 		]
 		(while (not @order-complete-or-failed)
 			(println "in the loop!")
-			(println lq)
 			(let [lq @last-quote]
-				(if (and lq (not= lq-time (get lq "quoteTime")))
+				(if (and lq (not= lq-time (get lq "quoteTime")) (get-in lq ["quote" "ask"]))
 					(
-						(println "We're gonna try to order!")
-						(reset! lq-time (get lq "quoteTime"))
-						(println (place-order (into fok-order {:price (get lq "bid") :qty (get lq "bidSize")}))))
+						(println (str "We're gonna try to order: " (get-in lq ["quote" "askSize"]) " at " (get-in lq ["quote" "ask"])) "!")
+						(println (place-order (into fok-order {"price" (get-in lq ["quote" "ask"]) "qty" (get-in lq ["quote" "askSize"])}))))
 					(
 						println "Do Nothing")
 					)
