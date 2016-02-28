@@ -36,6 +36,8 @@
 ;;;;;;;;;;;;;;; Endpoints ;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; Getting Info
+
 (defn sf-server-is-alive []
 	"Verifies that the game server is still working"
 	(let 
@@ -55,11 +57,6 @@
 			(str base-url "venues/" (:venue order) "/stocks/" (:symbol order) "/orders/" (:id order))
 			req-opts))))
 
-(defn order-is-stale
-	[stock-quote order]
-	; placeholder. Maybe if the distance from the best price is more than the Zx spread?
-		(false))
-
 (defn all-order-statuses
 	[venue account] 
 	(json/read-json (
@@ -67,6 +64,35 @@
 			(str base-url "/venues/" venue "/accounts/" account "/orders")
 			req-opts
 			))))
+
+; Placing orders
+
+(def default-order {
+	"account" nil
+	"venue" nil
+	"stock" nil
+	"price" nil
+	"qty" nil
+	"direction" nil
+	"orderType" nil
+	})
+
+(defn place-order
+	[order]
+	"
+	account: String 'EXB123456'
+	venue: String 'TESTEX'
+	stock: 'FOOBAR'
+	price: Integer, Ignored for market orders.
+	qty: Integer
+	direction: Whether you want to 'buy' or 'sell'
+	orderType: ['limit'|'market'|'fill-or-kill'|'immediate-or-cancel']
+	"
+	; https://api.stockfighter.io/ob/api/venues/:venue/stocks/:stock/orders
+	(http/post 
+		(str "https://api.stockfighter.io/ob/api/venues/" venue "/stocks/" stock "/orders")
+		(into req-opts {:body (json/encode order)}))
+)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; WEB SOCKETS ;;;;;;;;;;;;;;;;
@@ -112,8 +138,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn spread [stock-quote] (- 
-	(or (get stock-quote "ask") (get stock-quote "bid"))
-	(or (get stock-quote "bid") (get stock-quote "ask"))))
+	(or (get stock-quote "ask") (get stock-quote "bid") 0)
+	(or (get stock-quote "bid") (get stock-quote "ask") 0)))
 
 (defn average [lst] (/ (reduce + lst) (count lst)))
 
@@ -126,6 +152,10 @@
 (defn filter-open-orders
 	[orders] (filter #(= (:open %) true)))
 
+(defn order-is-stale
+	[stock-quote order]
+	; placeholder. Maybe if the distance from the best price is more than the Zx spread?
+		(false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; COMPOSITES ;;;;;;;;;;;;;;;;;
@@ -159,16 +189,27 @@
 		; State tracking shit
 		order-complete-or-failed (atom false)
 		remaining-to-sell (atom qty)
+		last-quote-time (atom nil)
 		; Save some parens
 		get-all-orders #(all-order-statuses venue acct)
+		fok-order (into default-order {
+			"direction" "buy"
+			"venue" venue
+			"stock" stock
+			"account" acct
+			"orderType" "fill-or-kill"
+			})
 		]
 		(while (not order-complete-or-failed)
 			(let [
 				lq (json/read-str @last-quote)
 				]
+				()
+				(if ()
+					(place-order (into fok-order {:price (get lq "bid") :qty (get lq "bidSize")}))
 
+					)
 						))))
-
 
 
 
