@@ -11,11 +11,12 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;; Static and Config Stuff ;;;;;;;;;
+;;;;;;; Static, GM, and Config Stuff ;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ; Make these private definitions
 ;
+; (require ['sf-clojure.sf-api-client :refer :all])
 
 (def api-key secrets/api-key)
 (def base-url "https://api.stockfighter.io/ob/api")
@@ -24,13 +25,46 @@
 	:headers {"X-Starfighter-Authorization" api-key}
 	:user-agent "Invisible Hand, Left"})
 
+
+(def instance-id (atom nil))
+(def account (atom ""))
+(def instructions (atom ""))
+(def venues (atom []))
+(def tickers (atom []))
+(def secs-per-day (atom nil))
+
+(def last-quote (atom nil))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;; GM Functions ;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn start-game [lvl]
-	(println lvl " Shit!")
-	)
+(defn start-game [game-map]
+	(do 
+		(println "Assigning Level Atoms")
+		(reset! instance-id (get game-map "instanceId"))
+		(reset! account (get game-map "account"))
+		; Not sure why instructions is nested?
+		(reset! instructions (get-in game-map ["instructions" "Instructions"]))
+		(reset! venues (get game-map "venues"))
+		(reset! tickers (get game-map "tickers"))
+		(reset! secs-per-day (get game-map "secondsPerTradingDay"))
+		(get game-map "ok")
+	))
+
+(defn stop-game [inst-id]
+	"Ends the game, does not pause"
+	(http/post (str "https://www.stockfighter.io/gm/instances/" inst-id "/stop") req-opts))
+
+(defn restart-game [inst-id]
+	(start-game (:body @(http/post (str "https://www.stockfighter.io/gm/instances/" inst-id "/restart") req-opts))))
+
+(defn resume-game [inst-id]
+	"Really just re-sends the game info again, stop-game doesn't pause"
+	(http/post (str "https://www.stockfighter.io/gm/instances/" inst-id "/resume") req-opts))
+
+(defn start-chockablock []
+	(start-game (json/read-str (:body @(http/post "https://www.stockfighter.io/gm/levels/chock_a_block" req-opts)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;; Endpoints ;;;;;;;;;;;;;;;;;
@@ -99,10 +133,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Probably going to need s/consume?
 
-(def venue "NIIGEX")
-(def account "SY44249583")
-(def last-quote (atom nil))
-
 (defn mk-ticker
 	[acct venue stock]
 	(ws-http/websocket-client 
@@ -122,16 +152,14 @@
 	(ws-http/websocket-client 
 		(str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/stocks/" stock)))
 
-(defn record-to [record-atom]
-	; Switch to update instead of replace with last
-	(fn [msg]
-		(reset! record-atom msg)))
+(defn record-last-quote [ws]
+	(s/consume (fn [q] (reset! last-quote (json/read-str q))) @ws))
 
 ; Lead for dealing with breaking pipes: s/closed? || s/on-closed
-(def ws (mk-ex-ticker account venue))
+; (def ws (mk-ex-ticker account venue))
 
-(defn record-venue [record connection]
-	(future (s/consume (record-to record) @connection)))
+; (defn record-venue [record connection]
+; 	(future (s/consume (record-to record) @connection)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; ATOMIC STATS ;;;;;;;;;;;;;;;
@@ -166,6 +194,7 @@
 
 (defn stupid-block-sell [acct venue stock qty]
 	"This method assumes your fellow market participants are criminally stupid."
+	(println "Starting up....")
 	(let [
 		; State tracking shit
 		order-complete-or-failed (atom false)
@@ -180,11 +209,13 @@
 			})
 		get-all-orders (fn [] (all-order-statuses venue acct))
 		]
-		(while (not order-complete-or-failed)
-			(let [lq (json/read-str @last-quote)]
-
+		(while (not @order-complete-or-failed)
+			(println "in the loop!")
+			(println lq)
+			(let [lq @last-quote]
 				(if (and lq (not= lq-time (get lq "quoteTime")))
 					(
+						(println "We're gonna try to order!")
 						(reset! lq-time (get lq "quoteTime"))
 						(println (place-order (into fok-order {:price (get lq "bid") :qty (get lq "bidSize")}))))
 					(
@@ -192,7 +223,7 @@
 					)
 						))))
 
-
+; (def ws (mk-ticker @account (first @venues) (first @tickers)))
 
 
 
