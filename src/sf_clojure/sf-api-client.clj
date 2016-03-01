@@ -33,6 +33,7 @@
 (def secs-per-day (atom nil))
 
 (def last-quote (atom nil))
+(def execution-list (atom []))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;; GM Functions ;;;;;;;;;;;;;;;;
@@ -152,6 +153,9 @@
 (defn record-last-quote [ws]
 	(s/consume (fn [q] (reset! last-quote (json/read-str q))) @ws))
 
+(defn record-executions [ws]
+	(s/consume (fn [q] (swap! execution-list (json/read-str q))) @ws))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; ATOMIC STATS ;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -203,11 +207,13 @@
 				(if (and lq (not= lq-time (get lq "quoteTime")) (get-in lq ["quote" "ask"]))
 					(
 						(println (str "We're gonna try to order: " (get-in lq ["quote" "askSize"]) " at " (get-in lq ["quote" "ask"])) "!")
-						(println (place-order (into fok-order {"price" (get-in lq ["quote" "ask"]) "qty" (get-in lq ["quote" "askSize"])}))))
+						(println (place-order (into fok-order {"price" (get-in lq ["quote" "ask"]) "qty" (get-in lq ["quote" "askSize"])})))
+						(println "Made it to end of if block?"))
 					(
 						println "Do Nothing")
 					)
-						))))
+						)
+			(println "Made it to the end of while block"))))
 
 ; (def ws (mk-ticker @account (first @venues) (first @tickers)))
 
