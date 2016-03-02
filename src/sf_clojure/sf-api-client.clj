@@ -140,21 +140,24 @@
 	[acct venue]
 	(println "unimplemented"))
 
-(defn mk-ex-execution-ticker
-	[acct venue]
-	(ws-http/websocket-client 
-		(str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/")))
+; (defn mk-ex-execution-ticker
+; 	[acct venue]
+; 	(ws-http/websocket-client 
+; 			 "wss://api.stockfighter.io/ob/api/ws/:trading_account/venues/:venue/executions/stocks/:symbol"
+; 		(str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/")))
 
 (defn mk-execution-ticker
 	[acct venue stock]
 	(ws-http/websocket-client 
-		(str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/stocks/" stock)))
+		; Not sure why www worked instead of api....
+		(str "wss://www.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/stocks/" stock)))
+
 
 (defn record-last-quote [ws]
 	(s/consume (fn [q] (reset! last-quote (json/read-str q))) @ws))
 
 (defn record-executions [ws]
-	(s/consume (fn [q] (println q) (swap! execution-list (json/read-str q))) @ws))
+	(s/consume (fn [q] (println q) (swap! execution-list conj (json/read-str q))) @ws))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; ATOMIC STATS ;;;;;;;;;;;;;;;
@@ -207,15 +210,30 @@
 				(if (and lq (not= lq-time (get lq "quoteTime")) (get-in lq ["quote" "ask"]))
 					(
 						(println (str "We're gonna try to order: " (get-in lq ["quote" "askSize"]) " at " (get-in lq ["quote" "ask"])) "!")
-						(println (place-order (into fok-order {"price" (get-in lq ["quote" "ask"]) "qty" (get-in lq ["quote" "askSize"])})))
-						(println "Made it to end of if block?"))
+						(place-order (into fok-order {"price" (get-in lq ["quote" "ask"]) "qty" (get-in lq ["quote" "askSize"])}))
+						(println "Made it to end of if block"))
 					(
 						println "Do Nothing")
 					)
 						)
 			(println "Made it to the end of while block"))))
 
+
+; EXAMPLE USAGE
+
+; (start-chockablock)
+
 ; (def ws (mk-ticker @account (first @venues) (first @tickers)))
+
+; (def ex-ws (mk-execution-ticker @account (first @venues) (first @tickers)))
+
+; (record-last-quote ws)
+; (record-executions ex-ws)
+
+; (stupid-block-sell @account (first @venues) (first @tickers) 100000)
+
+
+
 
 
 
