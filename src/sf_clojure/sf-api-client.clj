@@ -154,7 +154,7 @@
 	(s/consume (fn [q] (reset! last-quote (json/read-str q))) @ws))
 
 (defn record-executions [ws]
-	(s/consume (fn [q] (swap! execution-list (json/read-str q))) @ws))
+	(s/consume (fn [q] (println q) (swap! execution-list (json/read-str q))) @ws))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; ATOMIC STATS ;;;;;;;;;;;;;;;
