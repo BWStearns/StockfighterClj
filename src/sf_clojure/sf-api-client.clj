@@ -208,16 +208,18 @@
 			(println "in the loop!")
 			(let [lq @last-quote]
 				(if (and lq (not= lq-time (get lq "quoteTime")) (get-in lq ["quote" "ask"]))
-					(
+					(do
+						(println (str "Setting time: " (get-in lq ["quote" "quoteTime"])))
+						(reset! lq-time (get-in lq ["quote" "quoteTime"]))
 						(println (str "We're gonna try to order: " (get-in lq ["quote" "askSize"]) " at " (get-in lq ["quote" "ask"])) "!")
-						(place-order (into fok-order {"price" (get-in lq ["quote" "ask"]) "qty" (get-in lq ["quote" "askSize"])}))
+						(println (place-order (into fok-order {"price" (get-in lq ["quote" "ask"]) "qty" (get-in lq ["quote" "askSize"])})))
 						(println "Made it to end of if block"))
 					(
 						println "Do Nothing")
-					)
-						)
-			(println "Made it to the end of while block"))))
+					)) 
+			(println "Done with loop iteration"))))
 
+; Instead of FOK how about maintaining n number of shares at target price?
 
 ; EXAMPLE USAGE
 
