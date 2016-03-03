@@ -32,6 +32,10 @@
 (def tickers (atom []))
 (def secs-per-day (atom nil))
 
+(def eow-day (atom 0))
+(def current-day (atom 0))
+(def target-price (atom nil))
+
 (def last-quote (atom nil))
 (def execution-list (atom []))
 
@@ -65,6 +69,20 @@
 
 (defn start-chockablock []
 	(start-game (json/read-str (:body @(http/post "https://www.stockfighter.io/gm/levels/chock_a_block" req-opts)))))
+
+ (defn check-on-instance []
+ 	(http/get (str "https://www.stockfighter.io/gm/instances/" @instance-id)))
+
+ (defn extract-price [text]
+ 	(Double/parseDouble (second (clojure.string/split text #"was: \$"))))
+
+ (defn process-instance-info [resp]
+ 	(let [data (json/read-json (:body @resp))]
+ 		(if (and (not target-price) (:flash data))
+ 			(reset! target-price (extract-price (:flash data))))
+ 		(reset! current-day (:tradingDay (:details data)))
+ 		(reset! eow-day (:endOfTheWorldDay (:details data)))
+ 		))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;; Endpoints ;;;;;;;;;;;;;;;;;
@@ -122,10 +140,34 @@
 	direction: Whether you want to 'buy' or 'sell'
 	orderType: ['limit'|'market'|'fill-or-kill'|'immediate-or-cancel']
 	"
-	@(http/post 
+	(http/post 
 		(str "https://api.stockfighter.io/ob/api/venues/" (get order "venue") "/stocks/" (get order "stock") "/orders")
 		(into req-opts {:body (json/write-str order)}))
 )
+
+(defn fok-last-quote [] 
+	(println "ATTEMPTING FOK ORDER: ")
+	(place-order (into default-order {
+			"direction" "buy"
+			"venue" (get-in @last-quote ["quote" "venue"])
+			"stock" (get-in @last-quote ["quote" "symbol"])
+			"account" @account
+			"orderType" "fill-or-kill"
+			"qty" (get-in @last-quote ["quote" "askSize"])
+			"price" (get-in @last-quote ["quote" "ask"])
+			})))
+
+(defn ioc-last-quote [] 
+	(println "ATTEMPTING FOK ORDER: ")
+	(place-order (into default-order {
+			"direction" "buy"
+			"venue" (get-in @last-quote ["quote" "venue"])
+			"stock" (get-in @last-quote ["quote" "symbol"])
+			"account" @account
+			"orderType" "immediate-or-cancel"
+			"qty" (get-in @last-quote ["quote" "askSize"])
+			"price" (get-in @last-quote ["quote" "ask"])
+			})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; WEB SOCKETS ;;;;;;;;;;;;;;;;
@@ -140,11 +182,11 @@
 	[acct venue]
 	(println "unimplemented"))
 
-; (defn mk-ex-execution-ticker
-; 	[acct venue]
-; 	(ws-http/websocket-client 
-; 			 "wss://api.stockfighter.io/ob/api/ws/:trading_account/venues/:venue/executions/stocks/:symbol"
-; 		(str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/")))
+(defn mk-ex-execution-ticker
+	[acct venue]
+	(ws-http/websocket-client 
+			 "wss://api.stockfighter.io/ob/api/ws/:trading_account/venues/:venue/executions/stocks/:symbol"
+		(str "wss://api.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/")))
 
 (defn mk-execution-ticker
 	[acct venue stock]
@@ -183,6 +225,13 @@
 	; placeholder. Maybe if the distance from the best price is more than the Zx spread?
 		(false))
 
+(defn get-qty [ordr]
+	"It's gross yes! but it'll be cleaned when I add records for orders"
+	(reduce + (map #(get % "qty") (get-in ordr ["order" "fills"]))))
+
+(defn total-purchased [executions]
+	(reduce + (map get-qty executions)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; COMPOSITES ;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -190,50 +239,42 @@
 (defn stupid-block-sell [acct venue stock qty]
 	"This method assumes your fellow market participants are criminally stupid."
 	(println "Starting up....")
-	(let [
-		; State tracking shit
-		order-complete-or-failed (atom false)
-		remaining-to-sell (atom qty)
-		lq-time (atom nil)
-		fok-order (into default-order {
-			"direction" "buy"
-			"venue" venue
-			"stock" stock
-			"account" acct
-			"orderType" "fill-or-kill"
-			})
-		get-all-orders (fn [] (all-order-statuses venue acct))
-		]
-		(while (not @order-complete-or-failed)
-			(println "in the loop!")
-			(let [lq @last-quote]
-				(if (and lq (not= lq-time (get lq "quoteTime")) (get-in lq ["quote" "ask"]))
-					(do
-						(println (str "Setting time: " (get-in lq ["quote" "quoteTime"])))
-						(reset! lq-time (get-in lq ["quote" "quoteTime"]))
-						(println (str "We're gonna try to order: " (get-in lq ["quote" "askSize"]) " at " (get-in lq ["quote" "ask"])) "!")
-						(println (place-order (into fok-order {"price" (get-in lq ["quote" "ask"]) "qty" (get-in lq ["quote" "askSize"])})))
-						(println "Made it to end of if block"))
-					(
-						println "Do Nothing")
-					)) 
-			(println "Done with loop iteration"))))
+	(let [order-complete-or-failed (atom false)
+		lq-time (atom nil)]
+		(while (> qty (total-purchased @execution-list))
+			; (println "in the loop!")
+			; (println (str @lq-time  "\t\t" (get-in last-quote["quote" "quoteTime"])))
+			(if (and @last-quote (not= @lq-time (get-in @last-quote ["quote" "quoteTime"])) (get-in @last-quote ["quote" "ask"]))
+				(do
+					(println "\n\n\n")
+					(println @(ioc-last-quote))
+					(println (str "Needed: " qty "\t" "Purchased: " (total-purchased @execution-list)))
+					(process-instance-info (check-on-instance))
+					(reset! lq-time (get-in @last-quote ["quote" "quoteTime"])))))))
 
 ; Instead of FOK how about maintaining n number of shares at target price?
 
 ; EXAMPLE USAGE
 
-; (start-chockablock)
-
-; (def ws (mk-ticker @account (first @venues) (first @tickers)))
-
-; (def ex-ws (mk-execution-ticker @account (first @venues) (first @tickers)))
-
-; (record-last-quote ws)
-; (record-executions ex-ws)
-
-; (stupid-block-sell @account (first @venues) (first @tickers) 100000)
-
+;(load "sf-api-client")
+;(require ['sf-clojure.sf-api-client :refer :all])
+;(require '[org.httpkit.client :as http])
+;(require '[clojure.data.json :as json])
+;(require '[aleph.http :as ws-http])
+;(require '[byte-streams :as bs])
+;(require '[manifold.stream :as s])
+;(require '[sf-clojure.secrets :as secrets])
+;
+;(start-chockablock)
+;
+;(def ws (mk-ticker @account (first @venues) (first @tickers)))
+;
+;(def ex-ws (mk-execution-ticker @account (first @venues) (first @tickers)))
+;
+;(record-last-quote ws)
+;(record-executions ex-ws)
+;
+;(stupid-block-sell @account (first @venues) (first @tickers) 100000)
 
 
 
