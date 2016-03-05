@@ -6,6 +6,7 @@
 (require '[aleph.http :as ws-http])
 (require '[byte-streams :as bs])
 (require '[manifold.stream :as s])
+(require '[manifold.deferred :as d])
 
 (require '[sf-clojure.secrets :as secrets])
 
@@ -36,6 +37,8 @@
 (def current-day (atom 0))
 (def target-price (atom nil))
 
+; Create a map for symbols where each has these, as well as things like their
+; order book, and their websockets
 (def last-quote (atom nil))
 (def execution-list (atom []))
 
@@ -118,6 +121,7 @@
 			))))
 
 ; Placing orders
+; Orders needs a record and record validator
 
 (def default-order {
 	"account" nil
@@ -194,12 +198,25 @@
 		; Not sure why www worked instead of api....
 		(str "wss://www.stockfighter.io/ob/api/ws/" acct "/venues/" venue "/executions/stocks/" stock)))
 
-
 (defn record-last-quote [ws]
 	(s/consume (fn [q] (reset! last-quote (json/read-str q))) @ws))
 
 (defn record-executions [ws]
 	(s/consume (fn [q] (println q) (swap! execution-list conj (json/read-str q))) @ws))
+
+; Proposed re-connect solution from reddit.
+(defn permanent-websocket-stream [ws-conn-generator]
+	(let [
+		s (s/stream* {:permanent? true})
+		renew-connection 
+			(fn this [] 
+				(d/chain (ws-conn-generator) 
+					(fn [conn] 
+						(s/connect conn s) 
+						(s/on-closed conn this))))
+		]
+    	(renew-connection) s))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;; ATOMIC STATS ;;;;;;;;;;;;;;;
@@ -251,6 +268,8 @@
 					(println (str "Needed: " qty "\t" "Purchased: " (total-purchased @execution-list)))
 					(process-instance-info (check-on-instance))
 					(reset! lq-time (get-in @last-quote ["quote" "quoteTime"])))))))
+
+
 
 ; Instead of FOK how about maintaining n number of shares at target price?
 
