@@ -270,6 +270,10 @@
 					(reset! lq-time (get-in @last-quote ["quote" "quoteTime"])))))))
 
 
+(defn mildly-stupid-block-sell [acct venue stock qty]
+	"This one tries just keeps 10K on offer at a given price until it moves qty"
+	nil)
+
 
 ; Instead of FOK how about maintaining n number of shares at target price?
 
